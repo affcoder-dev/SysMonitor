@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="light">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SysMonitor Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <i data-lucide="monitor"></i>
+                <h1>SysMonitor</h1>
+            </div>
+            <div class="header-actions">
+                <a href="/security" class="btn-primary" style="margin-right: 10px;"><i data-lucide="shield"></i> Güvenlik Merkezi</a>
+                <button id="theme-toggle" class="btn-icon" title="Temayı Değiştir">
+                    <i data-lucide="moon"></i>
+                </button>
+                <a href="/logout" class="btn-secondary"><i data-lucide="log-out"></i> Çıkış Yap</a>
+            </div>
+        </header>
+
+        <!-- Real-time Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon"><i data-lucide="cpu"></i></div>
+                <div class="stat-info">
+                    <h3>CPU Kullanımı</h3>
+                    <p id="cpu-stat">0%</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--success);"><i data-lucide="memory-stick"></i></div>
+                <div class="stat-info">
+                    <h3>RAM Kullanımı</h3>
+                    <p id="ram-stat">0%</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245, 158, 11, 0.1); color: var(--warning);"><i data-lucide="arrow-up-circle"></i></div>
+                <div class="stat-info">
+                    <h3>Ağ (Upload)</h3>
+                    <p id="up-stat">0 B/s</p>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(239, 68, 68, 0.1); color: var(--danger);"><i data-lucide="arrow-down-circle"></i></div>
+                <div class="stat-info">
+                    <h3>Ağ (Download)</h3>
+                    <p id="down-stat">0 B/s</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h2>En Çok Kullanılan Uygulamalar (Bugün)</h2>
+                <div style="height: 300px; width: 100%; display: flex; justify-content: center; position: relative;">
+                    <canvas id="topAppsChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls-bar">
+            <div class="search-box">
+                <i data-lucide="search"></i>
+                <input type="text" id="search-box" placeholder="Tablolarda hızlı ara..." aria-label="Tablolarda hızlı ara">
+            </div>
+            <div class="filters">
+                <div class="filter-group">
+                    <i data-lucide="calendar"></i>
+                    <input type="date" id="filter-date" aria-label="Tarih Filtresi">
+                </div>
+                <div class="filter-group">
+                    <i data-lucide="clock"></i>
+                    <input type="number" id="filter-hour" placeholder="Saat (0-23)" min="0" max="23">
+                </div>
+                <button onclick="fetchLogs()" class="btn-primary">Filtrele</button>
+                <button onclick="resetFilters()" class="btn-secondary"><i data-lucide="rotate-ccw"></i> Sıfırla</button>
+            </div>
+        </div>
+
+        <main class="dashboard">
+            <section class="card">
+                <div class="card-header">
+                    <div class="title-wrap">
+                        <i data-lucide="layout-template"></i>
+                        <h2>Pencere Geçmişi</h2>
+                    </div>
+                    <button onclick="exportTableToCSV('windows-table', 'windows.csv')" class="btn-secondary btn-sm"><i data-lucide="download"></i> Excel/CSV</button>
+                </div>
+                <div class="table-container">
+                    <table id="windows-table">
+                        <thead><tr><th>Zaman</th><th>Pencere Başlığı</th><th>Süre</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <div class="title-wrap">
+                        <i data-lucide="cpu"></i>
+                        <h2>Çalışan Programlar</h2>
+                    </div>
+                    <button onclick="exportTableToCSV('processes-table', 'processes.csv')" class="btn-secondary btn-sm"><i data-lucide="download"></i> Excel/CSV</button>
+                </div>
+                <div class="table-container">
+                    <table id="processes-table">
+                        <thead><tr><th>Zaman</th><th>Program Adı</th><th>PID</th><th>Dosya Yolu</th><th>İşlem</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <div class="title-wrap">
+                        <i data-lucide="usb"></i>
+                        <h2>USB Etkinlikleri</h2>
+                    </div>
+                    <button onclick="exportTableToCSV('usb-table', 'usb.csv')" class="btn-secondary btn-sm"><i data-lucide="download"></i> Excel/CSV</button>
+                </div>
+                <div class="table-container">
+                    <table id="usb-table">
+                        <thead><tr><th>Zaman</th><th>Durum</th><th>Cihaz Adı</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+            <section class="card">
+                <div class="card-header">
+                    <div class="title-wrap">
+                        <i data-lucide="lock"></i>
+                        <h2>Kilitli Dosya Erişimi</h2>
+                    </div>
+                    <button onclick="exportTableToCSV('files-table', 'files.csv')" class="btn-secondary btn-sm"><i data-lucide="download"></i> Excel/CSV</button>
+                </div>
+                <div class="table-container">
+                    <table id="files-table">
+                        <thead><tr><th>Zaman</th><th>Olay Türü</th><th>Dosya Adı</th><th>Detaylar</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <div id="toast-container"></div>
+
+    <script>
+        lucide.createIcons();
+
+        // Utility: Format Time
+        function formatTime(timestamp) {
+            const d = new Date(timestamp + 'Z');
+            return d.toLocaleString('tr-TR', {
+                year: 'numeric', month: '2-digit', day: '2-digit',
+                hour: '2-digit', minute: '2-digit', second: '2-digit'
+            });
+        }
+
+        // Utility: Format Bytes
+        function formatBytes(bytes, decimals = 2) {
+            if (!+bytes) return '0 B';
+            const k = 1024, dm = decimals < 0 ? 0 : decimals, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+
+        // --- Socket.IO Real-time Data ---
+        const socket = io();
+        socket.on('system_stats', (data) => {
+            document.getElementById('cpu-stat').innerText = data.cpu.toFixed(1) + '%';
+            document.getElementById('ram-stat').innerText = data.ram.toFixed(1) + '%';
+            document.getElementById('up-stat').innerText = formatBytes(data.upload) + '/s';
+            document.getElementById('down-stat').innerText = formatBytes(data.download) + '/s';
+        });
+        
+        socket.on('alert', (data) => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${data.type}`;
+            const icon = data.type === 'warning' ? 'alert-triangle' : 'usb';
+            toast.innerHTML = `<i data-lucide="${icon}"></i> <div class="font-medium">${data.message}</div>`;
+            container.appendChild(toast);
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.3s ease-out forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+            
+            fetchLogs(); // auto refresh tables
+        });
+
+        // --- Chart.js Integration ---
+        let topAppsChart = null;
+        async function loadChart() {
+            try {
+                const res = await fetch('/api/chart_data');
+                if(!res.ok) return;
+                const data = await res.json();
+                
+                const ctx = document.getElementById('topAppsChart').getContext('2d');
+                if(topAppsChart) topAppsChart.destroy();
+                
+                if (data.length === 0) {
+                    // Draw "No Data" text
+                    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+                    ctx.font = "14px Inter";
+                    ctx.fillStyle = "var(--text-muted)";
+                    ctx.textAlign = "center";
+                    ctx.fillText("Bugün henüz yeterli veri yok.", ctx.canvas.width / 2, ctx.canvas.height / 2);
+                    return;
+                }
+                
+                topAppsChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.map(d => d.title.length > 30 ? d.title.substring(0, 30) + '...' : d.title),
+                        datasets: [{
+                            data: data.map(d => d.duration),
+                            backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'],
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'right', labels: { color: 'var(--text-main)'} },
+                            tooltip: { callbacks: { label: (ctx) => ` ${ctx.raw} sn` } }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Chart loading error", error);
+            }
+        }
+        loadChart();
+        setInterval(loadChart, 30000); // Reload chart every 30s
+
+        // --- Fetch and Render Tables ---
+        async function fetchLogs() {
+            const date = document.getElementById('filter-date').value;
+            const hour = document.getElementById('filter-hour').value;
+
+            let url = '/api/logs?';
+            if (date) url += `date=${date}&`;
+            if (hour) url += `hour=${hour}`;
+
+            try {
+                const response = await fetch(url);
+                if(response.status === 401) { window.location.href = '/login'; return; }
+                const data = await response.json();
+
+                renderTable('windows-table', data.windows, (item) => `
+                    <tr>
+                        <td class="time-col">${formatTime(item.timestamp)}</td>
+                        <td class="font-medium">${item.window_title}</td>
+                        <td class="time-col"><span class="badge duration">${item.duration_seconds} sn</span></td>
+                    </tr>
+                `);
+
+                renderTable('processes-table', data.processes, (item) => `
+                    <tr>
+                        <td class="time-col">${formatTime(item.timestamp)}</td>
+                        <td class="font-medium">${item.process_name}</td>
+                        <td>${item.pid}</td>
+                        <td class="text-small">${item.exe_path || '-'}</td>
+                        <td><button onclick="killProcess(${item.pid})" class="btn-danger btn-sm"><i data-lucide="x-circle" style="width:14px;height:14px;vertical-align:bottom;"></i> Kapat</button></td>
+                    </tr>
+                `);
+
+                renderTable('usb-table', data.usb, (item) => `
+                    <tr>
+                        <td class="time-col">${formatTime(item.timestamp)}</td>
+                        <td><span class="badge ${item.event_type.toLowerCase()}">${item.event_type}</span></td>
+                        <td class="font-medium">${item.device_name}</td>
+                    </tr>
+                `);
+                
+                renderTable('files-table', data.files, (item) => `
+                    <tr>
+                        <td class="time-col">${formatTime(item.timestamp)}</td>
+                        <td><span class="badge ${item.event_type.toLowerCase()}">${item.event_type}</span></td>
+                        <td class="font-medium">${item.file_name}</td>
+                        <td class="text-small">${item.details || '-'}</td>
+                    </tr>
+                `);
+                
+                lucide.createIcons();
+                triggerSearch(); // Re-apply search filter if any
+            } catch (error) {
+                console.error("Error fetching logs:", error);
+            }
+        }
+
+        function renderTable(tableId, data, rowTemplate) {
+            const tbody = document.querySelector(`#${tableId} tbody`);
+            if (data.length === 0) {
+                const colSpan = document.querySelector(`#${tableId} thead tr`).children.length;
+                tbody.innerHTML = `<tr><td colspan="${colSpan}" class="empty-state">Veri bulunamadı.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = data.map(rowTemplate).join('');
+        }
+
+        function resetFilters() {
+            document.getElementById('filter-date').value = '';
+            document.getElementById('filter-hour').value = '';
+            document.getElementById('search-box').value = '';
+            fetchLogs();
+        }
+
+        // Live refresh logic
+        setInterval(() => {
+            const date = document.getElementById('filter-date').value;
+            const hour = document.getElementById('filter-hour').value;
+            if (!date && (!hour || hour === '')) {
+                fetchLogs();
+            }
+        }, 5000);
+
+        fetchLogs();
+
+        // --- Interactivity ---
+
+        // Remote Kill
+        async function killProcess(pid) {
+            if(!confirm(`PID ${pid} işlemini sonlandırmak istediğinize emin misiniz?`)) return;
+            try {
+                const res = await fetch(`/api/kill/${pid}`, {method: 'POST'});
+                const data = await res.json();
+                alert(data.message);
+                fetchLogs();
+            } catch (e) {
+                alert("Hata oluştu.");
+            }
+        }
+
+        // Theme Toggle
+        const themeBtn = document.getElementById('theme-toggle');
+        themeBtn.addEventListener('click', () => {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            themeBtn.innerHTML = newTheme === 'dark' ? '<i data-lucide="sun"></i>' : '<i data-lucide="moon"></i>';
+            lucide.createIcons();
+            
+            // Re-render chart text color based on theme
+            if(topAppsChart) {
+                topAppsChart.options.plugins.legend.labels.color = newTheme === 'dark' ? '#f8fafc' : '#0f172a';
+                topAppsChart.update();
+            }
+        });
+
+        // Search Box Filtering
+        const searchBox = document.getElementById('search-box');
+        function triggerSearch() {
+            const term = searchBox.value.toLowerCase();
+            if(!term) {
+                document.querySelectorAll('tbody tr').forEach(row => row.style.display = '');
+                return;
+            }
+            document.querySelectorAll('tbody tr').forEach(row => {
+                row.style.display = row.innerText.toLowerCase().includes(term) ? '' : 'none';
+            });
+        }
+        searchBox.addEventListener('input', triggerSearch);
+
+        // Export to CSV
+        function exportTableToCSV(tableId, filename) {
+            let csv = [];
+            const rows = document.querySelectorAll(`#${tableId} tr`);
+            for (let i = 0; i < rows.length; i++) {
+                if(rows[i].style.display === 'none') continue; // Don't export filtered rows
+                let row = [], cols = rows[i].querySelectorAll("td, th");
+                // Avoid exporting the "Kapat" button column in Processes
+                const colLen = (tableId === 'processes-table' && i > 0) ? cols.length - 1 : cols.length;
+                let hdrLen = cols.length;
+                if(tableId === 'processes-table' && i === 0) hdrLen -= 1; // don't export "İşlem"
+                
+                const limit = (i === 0) ? hdrLen : colLen;
+                for (let j = 0; j < limit; j++) {
+                    let text = cols[j].innerText.replace(/"/g, '""');
+                    row.push('"' + text + '"');
+                }
+                csv.push(row.join(","));
+            }
+            const csvFile = new Blob(["\uFEFF"+csv.join("\n")], {type: "text/csv;charset=utf-8;"}); // BOM for Excel UTF-8
+            const a = document.createElement("a");
+            a.download = filename;
+            a.href = window.URL.createObjectURL(csvFile);
+            a.click();
+        }
+    </script>
+</body>
+
+</html>

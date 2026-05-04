@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SysMonitor - Güvenlik Merkezi</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .security-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .file-browser {
+            background: var(--surface);
+            border-radius: var(--radius);
+            padding: 15px;
+            border: 1px solid var(--border);
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+        }
+        .file-item:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        .file-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .path-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 15px;
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: var(--radius);
+        }
+        .path-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <i data-lucide="shield"></i>
+                <h1>Güvenlik Merkezi</h1>
+            </div>
+            <div class="header-actions">
+                <a href="/" class="btn-secondary"><i data-lucide="arrow-left"></i> Ana Sayfaya Dön</a>
+                <button id="theme-toggle" class="btn-icon"><i data-lucide="moon"></i></button>
+            </div>
+        </header>
+
+        <main class="dashboard">
+            <div class="security-grid">
+                
+                <!-- Master Password Settings -->
+                <section class="card">
+                    <div class="card-header">
+                        <div class="title-wrap">
+                            <i data-lucide="key"></i>
+                            <h2>Ana Şifre Ayarları</h2>
+                        </div>
+                    </div>
+                    <div style="padding: 20px;">
+                        <p class="text-small" style="margin-bottom: 20px;">
+                            Burada belirleyeceğiniz şifre, sistemdeki kilitli dosyaları açmak ve engellenen USB cihazlarına izin vermek için kullanılacak tek şifredir.
+                        </p>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label>Yeni Ana Şifre</label>
+                            <input type="password" id="new-pwd" class="form-control" style="width:100%; padding: 10px; background:var(--bg-main); border:1px solid var(--border); color:var(--text-main);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label>Şifreyi Onayla</label>
+                            <input type="password" id="confirm-pwd" class="form-control" style="width:100%; padding: 10px; background:var(--bg-main); border:1px solid var(--border); color:var(--text-main);">
+                        </div>
+                        <button onclick="updatePassword()" class="btn-primary" style="width:100%;">Şifreyi Güncelle</button>
+                    </div>
+                </section>
+
+                <!-- File Browser & Locker -->
+                <section class="card">
+                    <div class="card-header">
+                        <div class="title-wrap">
+                            <i data-lucide="folder-lock"></i>
+                            <h2>Dosya Kilitleyici</h2>
+                        </div>
+                    </div>
+                    <div class="file-browser">
+                        <div class="path-bar">
+                            <button onclick="goUp()" class="btn-secondary btn-sm"><i data-lucide="corner-left-up"></i></button>
+                            <input type="text" id="current-path" class="path-input" value="C:\">
+                            <button onclick="browseFiles()" class="btn-primary btn-sm">Git</button>
+                        </div>
+                        <div id="file-list">
+                            <!-- Files will be populated here -->
+                        </div>
+                    </div>
+                </section>
+                <!-- Locked Files List -->
+                <section class="card" style="grid-column: 1 / -1;">
+                    <div class="card-header">
+                        <div class="title-wrap">
+                            <i data-lucide="shield-check"></i>
+                            <h2>Kilitli Öğeler</h2>
+                        </div>
+                        <button onclick="loadLockedFiles()" class="btn-icon"><i data-lucide="refresh-cw"></i></button>
+                    </div>
+                    <div style="padding: 20px;">
+                        <table class="data-table" style="width:100%; text-align:left; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid var(--border);">
+                                    <th style="padding: 10px;">Dosya/Klasör Yolu</th>
+                                    <th style="padding: 10px;">Durum</th>
+                                    <th style="padding: 10px;">Geçici Bitiş</th>
+                                    <th style="padding: 10px; text-align:right;">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody id="locked-list">
+                                <!-- Locked files will load here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                
+                <!-- Authorized USB Devices -->
+                <section class="card" style="grid-column: 1 / -1;">
+                    <div class="card-header">
+                        <div class="title-wrap">
+                            <i data-lucide="usb"></i>
+                            <h2>İzin Verilen Cihazlar (USB & HID)</h2>
+                        </div>
+                        <button onclick="loadAuthorizedDevices()" class="btn-icon"><i data-lucide="refresh-cw"></i></button>
+                    </div>
+                    <div style="padding: 20px;">
+                        <table class="data-table" style="width:100%; text-align:left; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid var(--border);">
+                                    <th style="padding: 10px;">Cihaz Adı / Sınıfı</th>
+                                    <th style="padding: 10px;">Cihaz Seri No / ID</th>
+                                    <th style="padding: 10px;">İzin Tarihi</th>
+                                    <th style="padding: 10px; text-align:right;">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usb-list">
+                                <!-- USB devices will load here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Currently Connected Devices -->
+                <section class="card" style="grid-column: 1 / -1;">
+                    <div class="card-header">
+                        <div class="title-wrap">
+                            <i data-lucide="monitor-speaker"></i>
+                            <h2>Şu An Bağlı Giriş & Depolama Aygıtları</h2>
+                        </div>
+                        <div class="header-actions">
+                            <button onclick="authorizeAllCurrent()" class="btn-primary btn-sm"><i data-lucide="check-check"></i> Aktif Giriş Cihazlarına Güven</button>
+                            <button onclick="loadCurrentDevices()" class="btn-icon"><i data-lucide="refresh-cw"></i></button>
+                        </div>
+                    </div>
+                    <div style="padding: 20px;">
+                        <p class="text-small" style="margin-bottom: 15px; color: var(--warning);">
+                            <i data-lucide="info" style="width:14px;height:14px;vertical-align:middle;"></i> 
+                            Burada listelenen cihazlar arasından kendi mouse ve klavyenizi "Güvenli" olarak işaretlemeniz önerilir. İşaretlenmeyen yeni cihazlar otomatik engellenecektir.
+                        </p>
+                        <table class="data-table" style="width:100%; text-align:left; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid var(--border);">
+                                    <th style="padding: 10px;">Cihaz Adı</th>
+                                    <th style="padding: 10px;">Sınıf</th>
+                                    <th style="padding: 10px;">Durum</th>
+                                    <th style="padding: 10px;">Kimlik (ID)</th>
+                                    <th style="padding: 10px; text-align:right;">İşlemler</th>
+                                </tr>
+                            </thead>
+                            <tbody id="current-devices-list">
+                                <!-- Current devices will load here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // Theme
+        const themeBtn = document.getElementById('theme-toggle');
+        themeBtn.addEventListener('click', () => {
+            const html = document.documentElement;
+            const newTheme = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            themeBtn.innerHTML = newTheme === 'dark' ? '<i data-lucide="sun"></i>' : '<i data-lucide="moon"></i>';
+            lucide.createIcons();
+        });
+
+        // Password Update
+        async function updatePassword() {
+            const pwd = document.getElementById('new-pwd').value;
+            const confirm = document.getElementById('confirm-pwd').value;
+
+            if(!pwd) return alert("Şifre boş olamaz!");
+            if(pwd !== confirm) return alert("Şifreler eşleşmiyor!");
+
+            try {
+                const res = await fetch('/api/settings/password', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({password: pwd})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    alert("Şifre başarıyla güncellendi.");
+                    document.getElementById('new-pwd').value = '';
+                    document.getElementById('confirm-pwd').value = '';
+                } else {
+                    alert("Hata: " + data.message);
+                }
+            } catch (e) {
+                alert("Bir hata oluştu.");
+            }
+        }
+
+        // File Browser
+        let parentPath = "C:\\";
+
+        async function browseFiles(pathOverride = null) {
+            const path = pathOverride || document.getElementById('current-path').value;
+            try {
+                const res = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
+                if(res.status === 403) return alert("Erişim reddedildi.");
+                if(res.status === 404) return alert("Dizin bulunamadı.");
+                
+                const data = await res.json();
+                if(data.error) return alert(data.error);
+
+                document.getElementById('current-path').value = data.current_path;
+                parentPath = data.parent_path;
+
+                const list = document.getElementById('file-list');
+                list.innerHTML = '';
+
+                data.items.forEach(item => {
+                    const el = document.createElement('div');
+                    el.className = 'file-item';
+                    
+                    const icon = item.is_dir ? 'folder' : 'file';
+                    const action = item.is_dir 
+                        ? `<button onclick="browseFiles('${item.path.replace(/\\/g, '\\\\')}')" class="btn-secondary btn-sm" style="margin-right:5px;">İçine Gir</button>
+                           <button onclick="lockFile('${item.path.replace(/\\/g, '\\\\')}')" class="btn-danger btn-sm"><i data-lucide="lock" style="width:14px;height:14px;vertical-align:middle;"></i> Klasörü Kilitle</button>`
+                        : `<button onclick="lockFile('${item.path.replace(/\\/g, '\\\\')}')" class="btn-danger btn-sm"><i data-lucide="lock" style="width:14px;height:14px;vertical-align:middle;"></i> Kilitle</button>`;
+
+                    el.innerHTML = `
+                        <div class="file-name" ${item.is_dir ? `onclick="browseFiles('${item.path.replace(/\\/g, '\\\\')}')"` : ''}>
+                            <i data-lucide="${icon}"></i>
+                            <span>${item.name}</span>
+                        </div>
+                        <div>${action}</div>
+                    `;
+                    list.appendChild(el);
+                });
+                lucide.createIcons();
+
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function goUp() {
+            browseFiles(parentPath);
+        }
+
+        async function lockFile(path) {
+            if(!confirm(`Bu dosyayı kilitlemek istediğinize emin misiniz?\n\n${path}`)) return;
+            
+            try {
+                const res = await fetch('/api/lock_file', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: path})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    alert(data.message);
+                    browseFiles(); // refresh
+                } else {
+                    alert("Hata: " + data.message);
+                }
+            } catch (e) {
+                alert("Bir hata oluştu.");
+            }
+        }
+
+        // Init
+        browseFiles("C:\\");
+        loadLockedFiles();
+        loadAuthorizedDevices();
+        loadCurrentDevices();
+
+        // Current Devices List
+        async function loadCurrentDevices() {
+            try {
+                const res = await fetch('/api/current_devices');
+                const data = await res.json();
+                
+                const list = document.getElementById('current-devices-list');
+                list.innerHTML = '';
+                
+                data.forEach(item => {
+                    const el = document.createElement('tr');
+                    el.style.borderBottom = '1px solid var(--border)';
+                    
+                    const statusColor = item.Status === 'OK' ? 'var(--success)' : 'var(--danger)';
+                    const authBadge = item.is_authorized 
+                        ? `<span class="badge badge-success" style="background: rgba(76, 175, 80, 0.2); color: #4CAF50; padding: 2px 8px; border-radius: 10px; font-size: 11px;">Güvenli</span>`
+                        : `<span class="badge badge-warning" style="background: rgba(255, 152, 0, 0.2); color: #FF9800; padding: 2px 8px; border-radius: 10px; font-size: 11px;">Bilinmiyor</span>`;
+
+                    el.innerHTML = `
+                        <td style="padding: 10px;">${item.FriendlyName || 'Bilinmeyen'}</td>
+                        <td style="padding: 10px;"><small>${item.Class}</small></td>
+                        <td style="padding: 10px;"><span style="color:${statusColor}">${item.Status}</span> ${authBadge}</td>
+                        <td style="padding: 10px;"><small style="font-family:monospace; color:var(--text-muted);">${item.InstanceId.substring(0, 30)}...</small></td>
+                        <td style="padding: 10px; text-align:right;">
+                            ${!item.is_authorized ? `<button onclick="authorizeDevice('${item.InstanceId.replace(/\\/g, '\\\\')}', '${item.FriendlyName}')" class="btn-primary btn-sm">Güvenli İşaretle</button>` : '<i data-lucide="check" style="color:var(--success)"></i>'}
+                        </td>
+                    `;
+                    list.appendChild(el);
+                });
+                lucide.createIcons();
+            } catch (e) {
+                console.error("Failed to load current devices", e);
+            }
+        }
+
+        async function authorizeDevice(instanceId, name) {
+            try {
+                const res = await fetch('/api/authorize_device', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({instance_id: instanceId, name: name})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    loadCurrentDevices();
+                    loadAuthorizedDevices();
+                } else {
+                    alert("Hata: " + data.message);
+                }
+            } catch (e) {
+                alert("Bir hata oluştu.");
+            }
+        }
+
+        async function authorizeAllCurrent() {
+            if(!confirm("Şu an bağlı olan tüm AKTİF giriş cihazlarını (Klavye/Mouse) güvenli olarak işaretlemek istiyor musunuz?")) return;
+            try {
+                const res = await fetch('/api/authorize_all_current', { method: 'POST' });
+                const data = await res.json();
+                alert(data.message);
+                loadCurrentDevices();
+                loadAuthorizedDevices();
+            } catch (e) {
+                alert("Bir hata oluştu.");
+            }
+        }
+
+        // Authorized Devices List
+        async function loadAuthorizedDevices() {
+            try {
+                const res = await fetch('/api/authorized_devices');
+                const data = await res.json();
+                
+                const list = document.getElementById('usb-list');
+                list.innerHTML = '';
+                
+                data.forEach(item => {
+                    const el = document.createElement('tr');
+                    el.style.borderBottom = '1px solid var(--border)';
+                    
+                    el.innerHTML = `
+                        <td style="padding: 10px;"><b>${item.device_name || 'Bilinmeyen Cihaz'}</b></td>
+                        <td style="padding: 10px;"><small style="font-family: monospace; color: var(--text-muted);">${item.device_id}</small></td>
+                        <td style="padding: 10px;">${item.timestamp}</td>
+                        <td style="padding: 10px; text-align:right;">
+                            <button onclick="removeUsbDevice('${item.device_id}')" class="btn-danger btn-sm">İzni Kaldır</button>
+                        </td>
+                    `;
+                    list.appendChild(el);
+                });
+            } catch (e) {
+                console.error("Failed to load authorized devices", e);
+            }
+        }
+
+        async function removeUsbDevice(deviceId) {
+            if(!confirm("Bu cihazın iznini kaldırmak istediğinize emin misiniz? (Tekrar takıldığında şifre isteyecektir)")) return;
+            
+            try {
+                // Use encodeURIComponent to handle characters like #, &, etc.
+                const res = await fetch(`/api/authorized_devices/${encodeURIComponent(deviceId)}`, {
+                    method: 'DELETE'
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    alert(data.message);
+                    loadAuthorizedDevices();
+                } else {
+                    alert("Hata: " + data.message);
+                }
+            } catch (e) {
+                alert("Bir hata oluştu.");
+            }
+        }
+
+        // Locked Files List
+        async function loadLockedFiles() {
+            try {
+                const res = await fetch('/api/locked_files');
+                const data = await res.json();
+                
+                const list = document.getElementById('locked-list');
+                list.innerHTML = '';
+                
+                data.forEach(item => {
+                    const el = document.createElement('tr');
+                    el.style.borderBottom = '1px solid var(--border)';
+                    
+                    let status = item.is_temp_unlocked ? '<span style="color:var(--warning);">Geçici Açık</span>' : '<span style="color:var(--danger);">Kilitli</span>';
+                    let expiry = item.unlock_expiry || '-';
+                    
+                    el.innerHTML = `
+                        <td style="padding: 10px;">${item.original_path}</td>
+                        <td style="padding: 10px;">${status}</td>
+                        <td style="padding: 10px;">${expiry}</td>
+                        <td style="padding: 10px; text-align:right;">
+                            <button onclick="unlockItem(${item.id}, 'temporary')" class="btn-secondary btn-sm" style="margin-right:5px;">Geçici Aç (5 dk)</button>
+                            <button onclick="unlockItem(${item.id}, 'permanent')" class="btn-primary btn-sm">Kalıcı Aç</button>
+                        </td>
+                    `;
+                    list.appendChild(el);
+                });
+            } catch (e) {
+                console.error("Failed to load locked files", e);
+            }
+        }
+
+        async function unlockItem(id, action) {
+            const pwd = prompt("Lütfen Ana Şifrenizi girin:");
+            if (!pwd) return;
+            
+            try {
+                const res = await fetch('/api/unlock_file', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({id: id, password: pwd, action: action})
+                });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    alert(data.message);
+                    loadLockedFiles();
+                    browseFiles(); // Refresh browser too
+                } else {
+                    alert("Hata: " + data.message);
+                }
+            } catch (e) {
+                alert("Bir hata oluştu.");
+            }
+        }
+    </script>
+</body>
+</html>
